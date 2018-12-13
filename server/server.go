@@ -456,7 +456,7 @@ func openConnector(logger logrus.FieldLogger, conn storage.Connector) (connector
 
 	f, ok := ConnectorsConfig[conn.Type]
 	if !ok {
-		return c, fmt.Errorf("xunknown connector type %q", conn.Type)
+		return c, fmt.Errorf("unknown connector type %q", conn.Type)
 	}
 
 	connConfig := f()

@@ -4,7 +4,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type Connector struct {
+const exposedKeystonePort = "5000"
+const exposedKeystonePortAdmin = "35357"
+
+const keystoneHost = "http://localhost:"
+const keystoneURL = keystoneHost + exposedKeystonePort
+const keystoneAdminURL = keystoneHost + exposedKeystonePortAdmin
+const authTokenURL = keystoneURL + "/v3/auth/tokens/"
+const usersURL = keystoneAdminURL + "/v3/users/"
+const groupsURL = keystoneAdminURL + "/v3/groups/"
+
+
+type keystoneConnector struct {
 	Domain 			 string
 	KeystoneHost 	 string
 	KeystoneUsername string
@@ -12,21 +23,28 @@ type Connector struct {
 	Logger 			 logrus.FieldLogger
 }
 
-type ConnectorData struct {
-	AccessToken string `json:"accessToken"`
+type userKeystone struct {
+	Domain domainKeystone `json:"domain"`
+	ID     string         `json:"id"`
+	Name   string         `json:"name"`
 }
 
-type KeystoneUser struct {
-	Domain KeystoneDomain `json:"domain"`
-	ID 	   string 		  `json:"id"`
-	Name   string 		  `json:"name"`
-}
-
-type KeystoneDomain struct {
+type domainKeystone struct {
 	ID string   `json:"id"`
 	Name string `json:"name"`
 }
 
+// Config holds the configuration parameters for Keystone connector.
+// An example config:
+//	connectors:
+//		type: keystone
+//		id: keystone
+//		name: Keystone
+//		config:
+//			keystoneHost: http://example:5000
+//			domain: default
+//      keystoneUsername: demo
+//      keystonePassword: DEMO_PASS
 type Config struct {
 	Domain 			 string `json:"domain"`
 	KeystoneHost 	 string `json:"keystoneHost"`
@@ -34,50 +52,51 @@ type Config struct {
 	KeystonePassword string `json:"keystonePassword"`
 }
 
-type LoginRequestData struct {
-	Auth `json:"auth"`
+type loginRequestData struct {
+	auth `json:"auth"`
 }
 
-type Auth struct {
-	Identity `json:"identity"`
+type auth struct {
+	Identity identity `json:"identity"`
 }
 
-type Identity struct {
+type identity struct {
 	Methods  []string `json:"methods"`
-	Password 		  `json:"password"`
+	Password password          `json:"password"`
 }
 
-type Password struct {
-	User `json:"user"`
+type password struct {
+	User user `json:"user"`
 }
 
-type User struct {
-	Name   string 	`json:"name"`
-	Domain 			`json:"domain"`
+type user struct {
+	Name     string   `json:"name"`
+	Domain   Domain   `json:"domain"`
 	Password string `json:"password"`
 }
 
+// Domain struct holds an ID of domain
 type Domain struct {
 	ID string `json:"id"`
 }
 
-type Token struct {
-	IssuedAt  string 	   			 `json:"issued_at"`
-	Extras 	  map[string]interface{} `json:"extras"`
-	Methods   []string 	   			 `json:"methods"`
-	ExpiresAt string 	   			 `json:"expires_at"`
-	User 	  KeystoneUser 			 `json:"user"`
+type token struct {
+	IssuedAt  string                 `json:"issued_at"`
+	Extras    map[string]interface{} `json:"extras"`
+	Methods   []string               `json:"methods"`
+	ExpiresAt string                 `json:"expires_at"`
+	User      userKeystone           `json:"user"`
 }
 
-type TokenResponse struct {
-	Token Token `json:"token"`
+type tokenResponse struct {
+	Token token `json:"token"`
 }
 
-type CreateUserRequest struct {
-	CreateUser CreateUserForm  `json:"user"`
+type createUserRequest struct {
+	CreateUser createUserForm `json:"user"`
 }
 
-type CreateUserForm struct {
+type createUserForm struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Enabled  bool   `json:"enabled"`
@@ -85,52 +104,51 @@ type CreateUserForm struct {
 	Roles  []string `json:"roles"`
 }
 
-type UserResponse struct {
-	User CreateUserResponse `json:"user"`
+type userResponse struct {
+	User createUserResponse `json:"user"`
 }
 
-type CreateUserResponse struct {
+type createUserResponse struct {
 	Username string   `json:"username"`
 	Name 	 string   `json:"name"`
 	Roles 	 []string `json:"roles"`
 	Enabled  bool     `json:"enabled"`
-	Options  string   `json:"options"`
 	ID 		 string   `json:"id"`
 	Email 	 string   `json:"email"`
 }
 
-type CreateGroup struct {
-	Group CreateGroupForm `json:"group"`
+type createKeystoneGroup struct {
+	Group createGroupForm `json:"group"`
 }
 
-type CreateGroupForm struct {
+type createGroupForm struct {
 	Description string `json:"description"`
 	Name 		string `json:"name"`
 }
 
-type GroupID struct {
-	Group GroupIDForm `json:"group"`
+type groupID struct {
+	Group groupIDForm `json:"group"`
 }
 
-type GroupIDForm struct {
+type groupIDForm struct {
 	ID string `json:"id"`
 }
 
-type Links struct {
-	Self string `json:"self"`
+type links struct {
+	Self     string `json:"self"`
 	Previous string `json:"previous"`
-	Next string `json:"next"`
+	Next     string `json:"next"`
 }
 
-type Group struct {
-	DomainID 	string `json:"domain_id`
+type group struct {
+	DomainID    string `json:"domain_id`
 	Description string `json:"description"`
-	ID 			string `json:"id"`
-	Links 		Links  `json:"links"`
-	Name 		string `json:"name"`
+	ID          string `json:"id"`
+	Links       links  `json:"links"`
+	Name        string `json:"name"`
 }
 
-type GroupsResponse struct {
-	Links  Links   `json:"links"`
-	Groups []Group `json:"groups"`
+type groupsResponse struct {
+	Links  links   `json:"links"`
+	Groups []group `json:"groups"`
 }

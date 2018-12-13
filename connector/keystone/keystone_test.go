@@ -19,19 +19,21 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"github.com/stretchr/testify/assert"
 )
 
 const dockerCliVersion = "1.37"
 
-const exposedKeystonePort = "5000"
-const exposedKeystonePortAdmin = "35357"
+const adminUser = "demo"
+const adminPass = "DEMO_PASS"
+const invalidPass = "WRONG_PASS"
 
-const keystoneHost = "http://localhost"
-const keystoneURL = keystoneHost + ":" + exposedKeystonePort
-const keystoneAdminURL = keystoneHost + ":" + exposedKeystonePortAdmin
-const authTokenURL = keystoneURL + "/v3/auth/tokens/"
-const userURL = keystoneAdminURL + "/v3/users/"
-const groupURL = keystoneAdminURL + "/v3/groups/"
+const testUser = "test_user"
+const testPass = "test_pass"
+const testEmail = "test@example.com"
+const testGroup = "test_group"
+
+const domain = "default"
 
 func startKeystoneContainer() string {
 	ctx := context.Background()
@@ -78,7 +80,7 @@ func startKeystoneContainer() string {
 		panic(err)
 	}
 
-	fmt.Println(resp.ID)
+	fmt.Printf("Docker container ID: %s", resp.ID)
   	return resp.ID
 }
 
@@ -99,18 +101,18 @@ func cleanKeystoneContainer(ID string) {
 	}
 }
 
-func getAdminToken(admin_name, admin_pass string) (token string) {
+func getAdminToken(adminName, adminPass string) (token, id string) {
 	client := &http.Client{}
 
-	jsonData := LoginRequestData{
-		Auth: Auth{
-			Identity: Identity{
+	jsonData := loginRequestData{
+		auth: auth{
+			Identity: identity{
 				Methods:[]string{"password"},
-				Password: Password{
-					User: User{
-						Name: admin_name,
-						Domain: Domain{ID: "default"},
-						Password: admin_pass,
+				Password: password{
+					User: user{
+						Name:     adminName,
+						Domain:   Domain{ID: "default"},
+						Password: adminPass,
 					},
 				},
 			},
@@ -125,31 +127,38 @@ func getAdminToken(admin_name, admin_pass string) (token string) {
 	resp, _ := client.Do(req)
 
 	token = resp.Header["X-Subject-Token"][0]
-	return token
+
+	data, _ := ioutil.ReadAll(resp.Body)
+	var tokenResponse = new(tokenResponse)
+	err := json.Unmarshal(data, &tokenResponse)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return token, tokenResponse.Token.User.ID
 }
 
-func createUser(token, user_name, user_email, user_pass string) (string){
+func createUser(token, userName, userEmail, userPass string) (string){
 	client := &http.Client{}
 
-	createUserData := CreateUserRequest{
-		CreateUser: CreateUserForm{
-			Name: user_name,
-			Email: user_email,
-			Enabled: true,
-			Password: user_pass,
-			Roles: []string{"admin"},
+	createUserData := createUserRequest{
+		CreateUser: createUserForm{
+			Name:     userName,
+			Email:    userEmail,
+			Enabled:  true,
+			Password: userPass,
+			Roles:    []string{"admin"},
 		},
 	}
 
 	body, _ := json.Marshal(createUserData)
 
-	req, _ := http.NewRequest("POST", userURL, bytes.NewBuffer(body))
+	req, _ := http.NewRequest("POST", usersURL, bytes.NewBuffer(body))
 	req.Header.Set("X-Auth-Token", token)
 	req.Header.Add("Content-Type", "application/json")
 	resp, _ := client.Do(req)
 
 	data, _ := ioutil.ReadAll(resp.Body)
-	var userResponse = new(UserResponse)
+	var userResponse = new(userResponse)
 	err := json.Unmarshal(data, &userResponse)
 	if err != nil {
 		fmt.Println(err)
@@ -160,22 +169,21 @@ func createUser(token, user_name, user_email, user_pass string) (string){
 
 }
 
-func deleteUser(token, id string) {
+// delete group or user
+func delete(token, id, uri string) {
 	client := &http.Client{}
 
-	deleteUserURI := userURL + id
-	fmt.Println(deleteUserURI)
-	req, _ := http.NewRequest("DELETE", deleteUserURI, nil)
+	deleteURI := uri + id
+	req, _ := http.NewRequest("DELETE", deleteURI, nil)
 	req.Header.Set("X-Auth-Token", token)
-	resp, _ := client.Do(req)
-	fmt.Println(resp)
+	client.Do(req)
 }
 
 func createGroup(token, description, name string) string{
 	client := &http.Client{}
 
-	createGroupData := CreateGroup{
-		CreateGroupForm{
+	createGroupData := createKeystoneGroup{
+		createGroupForm{
 			Description: description,
 			Name: name,
 		},
@@ -183,13 +191,13 @@ func createGroup(token, description, name string) string{
 
 	body, _ := json.Marshal(createGroupData)
 
-	req, _ := http.NewRequest("POST", groupURL, bytes.NewBuffer(body))
+	req, _ := http.NewRequest("POST", groupsURL, bytes.NewBuffer(body))
 	req.Header.Set("X-Auth-Token", token)
 	req.Header.Add("Content-Type", "application/json")
 	resp, _ := client.Do(req)
 	data, _ := ioutil.ReadAll(resp.Body)
 
-	var groupResponse = new(GroupID)
+	var groupResponse = new(groupID)
 	err := json.Unmarshal(data, &groupResponse)
 	if err != nil {
 		fmt.Println(err)
@@ -198,27 +206,16 @@ func createGroup(token, description, name string) string{
 	return groupResponse.Group.ID
 }
 
-func addUserToGroup(token, groupId, userId string) {
-	uri := groupURL + groupId + "/users/" + userId
+func addUserToGroup(token, groupID, userID string) {
+	uri := groupsURL + groupID + "/users/" + userID
 	client := &http.Client{}
 	req, _ := http.NewRequest("PUT", uri, nil)
 	req.Header.Set("X-Auth-Token", token)
-	resp, _ := client.Do(req)
-	fmt.Println(resp)
+	client.Do(req)
 }
 
-const adminUser = "demo"
-const adminPass = "DEMO_PASS"
-const invalidPass = "WRONG_PASS"
-
-const testUser = "test_user"
-const testPass = "test_pass"
-const testEmail = "test@example.com"
-
-const domain = "default"
-
 func TestIncorrectCredentialsLogin(t *testing.T) {
-  	c := Connector{KeystoneHost: keystoneURL, Domain: domain,
+  	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
   				   KeystoneUsername: adminUser, KeystonePassword: adminPass}
   	s := connector.Scopes{OfflineAccess: true, Groups: true}
   	_, validPW, _ := c.Login(context.Background(), s, adminUser, invalidPass)
@@ -229,31 +226,85 @@ func TestIncorrectCredentialsLogin(t *testing.T) {
 }
 
 func TestValidUserLogin(t *testing.T) {
-	token := getAdminToken(adminUser, adminPass)
+	token, _ := getAdminToken(adminUser, adminPass)
 	userID := createUser(token, testUser, testEmail, testPass)
-  	c := Connector{KeystoneHost: keystoneURL, Domain: domain,
+  	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
   				  KeystoneUsername: adminUser, KeystonePassword: adminPass}
   	s := connector.Scopes{OfflineAccess: true, Groups: true}
-  	_, validPW, _ := c.Login(context.Background(), s, testUser, testPass)
+  	identity, validPW, _ := c.Login(context.Background(), s, testUser, testPass)
+  	fmt.Println(identity)
   	if !validPW {
      	t.Fail()
   	}
-  	deleteUser(token, userID)
+  	delete(token, userID, usersURL)
 }
 
 func TestUseRefreshToken(t *testing.T) {
-  t.Fatal("Not implemented")
+	token, adminID := getAdminToken(adminUser, adminPass)
+	groupID := createGroup(token, "Test group description", testGroup)
+	addUserToGroup(token, groupID, adminID)
+
+	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
+		KeystoneUsername: adminUser, KeystonePassword: adminPass}
+	s := connector.Scopes{OfflineAccess: true, Groups: true}
+
+	identityLogin, _, _ := c.Login(context.Background(), s, adminUser, adminPass)
+	identityRefresh, _ := c.Refresh(context.Background(), s, identityLogin)
+
+	delete(token, groupID, groupsURL)
+
+	assert.Equal(t, 1, len(identityRefresh.Groups))
+	assert.Equal(t, testGroup, string(identityRefresh.Groups[0]))
 }
 
 func TestUseRefreshTokenUserDeleted(t *testing.T){
-  t.Fatal("Not implemented")
+	token, _ := getAdminToken(adminUser, adminPass)
+	userID := createUser(token, testUser, testEmail, testPass)
+
+	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
+		KeystoneUsername: adminUser, KeystonePassword: adminPass}
+	s := connector.Scopes{OfflineAccess: true, Groups: true}
+
+	identityLogin, _, _ := c.Login(context.Background(), s, testUser, testPass)
+	c.Refresh(context.Background(), s, identityLogin)
+
+	delete(token, userID, usersURL)
+	_, response := c.Refresh(context.Background(), s, identityLogin)
+
+	assert.Contains(t, response.Error(), "does not exist")
 }
 
 func TestUseRefreshTokenGroupsChanged(t *testing.T){
-	t.Fatal("Not implemented")
+	token, _ := getAdminToken(adminUser, adminPass)
+	userID := createUser(token, testUser, testEmail, testPass)
+
+	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
+		KeystoneUsername: adminUser, KeystonePassword: adminPass}
+	s := connector.Scopes{OfflineAccess: true, Groups: true}
+
+	identityLogin, _, _ := c.Login(context.Background(), s, testUser, testPass)
+	identityRefresh, _ := c.Refresh(context.Background(), s, identityLogin)
+
+	assert.Equal(t, 0, len(identityRefresh.Groups))
+
+	groupID := createGroup(token, "Test group description", testGroup)
+	addUserToGroup(token, groupID, userID)
+
+	identityRefresh, _ = c.Refresh(context.Background(), s, identityLogin)
+
+	delete(token, groupID, groupsURL)
+	delete(token, userID, usersURL)
+
+	assert.Equal(t, 1, len(identityRefresh.Groups))
 }
 
 func TestMain(m *testing.M) {
+	testKeystoneEnv := "DEX_TEST_KEYSTONE"
+	endpointsStr := os.Getenv(testKeystoneEnv)
+	if endpointsStr == "" {
+		fmt.Printf("variable %q not set, skipping keystone connector tests\n", testKeystoneEnv)
+		return
+	}
 	dockerID := startKeystoneContainer()
   	repeats := 10
   	running := false
