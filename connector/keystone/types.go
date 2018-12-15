@@ -14,13 +14,12 @@ const authTokenURL = keystoneURL + "/v3/auth/tokens/"
 const usersURL = keystoneAdminURL + "/v3/users/"
 const groupsURL = keystoneAdminURL + "/v3/groups/"
 
-
 type keystoneConnector struct {
-	Domain 			 string
-	KeystoneHost 	 string
+	Domain           string
+	KeystoneHost     string
 	KeystoneUsername string
 	KeystonePassword string
-	Logger 			 logrus.FieldLogger
+	Logger           logrus.FieldLogger
 }
 
 type userKeystone struct {
@@ -30,7 +29,7 @@ type userKeystone struct {
 }
 
 type domainKeystone struct {
-	ID string   `json:"id"`
+	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
@@ -46,8 +45,8 @@ type domainKeystone struct {
 //      keystoneUsername: demo
 //      keystonePassword: DEMO_PASS
 type Config struct {
-	Domain 			 string `json:"domain"`
-	KeystoneHost 	 string `json:"keystoneHost"`
+	Domain           string `json:"domain"`
+	KeystoneHost     string `json:"keystoneHost"`
 	KeystoneUsername string `json:"keystoneUsername"`
 	KeystonePassword string `json:"keystonePassword"`
 }
@@ -62,7 +61,7 @@ type auth struct {
 
 type identity struct {
 	Methods  []string `json:"methods"`
-	Password password          `json:"password"`
+	Password password `json:"password"`
 }
 
 type password struct {
@@ -70,8 +69,8 @@ type password struct {
 }
 
 type user struct {
-	Name     string   `json:"name"`
-	Domain   Domain   `json:"domain"`
+	Name     string `json:"name"`
+	Domain   Domain `json:"domain"`
 	Password string `json:"password"`
 }
 
@@ -97,11 +96,11 @@ type createUserRequest struct {
 }
 
 type createUserForm struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Enabled  bool   `json:"enabled"`
-	Password string `json:"password"`
-	Roles  []string `json:"roles"`
+	Name     string   `json:"name"`
+	Email    string   `json:"email"`
+	Enabled  bool     `json:"enabled"`
+	Password string   `json:"password"`
+	Roles    []string `json:"roles"`
 }
 
 type userResponse struct {
@@ -110,11 +109,11 @@ type userResponse struct {
 
 type createUserResponse struct {
 	Username string   `json:"username"`
-	Name 	 string   `json:"name"`
-	Roles 	 []string `json:"roles"`
+	Name     string   `json:"name"`
+	Roles    []string `json:"roles"`
 	Enabled  bool     `json:"enabled"`
-	ID 		 string   `json:"id"`
-	Email 	 string   `json:"email"`
+	ID       string   `json:"id"`
+	Email    string   `json:"email"`
 }
 
 type createKeystoneGroup struct {
@@ -123,7 +122,7 @@ type createKeystoneGroup struct {
 
 type createGroupForm struct {
 	Description string `json:"description"`
-	Name 		string `json:"name"`
+	Name        string `json:"name"`
 }
 
 type groupID struct {

@@ -1,25 +1,25 @@
 package keystone
 
 import (
-	"testing"
 	"github.com/dexidp/dex/connector"
+	"testing"
 
 	"fmt"
 	"io"
+	"net/http"
 	"os"
-  	"time"
-  	"net/http"
+	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-   	networktypes "github.com/docker/docker/api/types/network"
-  	"github.com/docker/go-connections/nat"
-	"golang.org/x/net/context"
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	networktypes "github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/context"
+	"io/ioutil"
 )
 
 const dockerCliVersion = "1.37"
@@ -40,39 +40,39 @@ func startKeystoneContainer() string {
 	cli, err := client.NewClientWithOpts(client.WithVersion(dockerCliVersion))
 
 	if err != nil {
-    	fmt.Printf("Error %v", err)
+		fmt.Printf("Error %v", err)
 		return ""
 	}
 
 	imageName := "openio/openstack-keystone"
 	out, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
 	if err != nil {
-    	fmt.Printf("Error %v", err)
+		fmt.Printf("Error %v", err)
 		return ""
 	}
 	io.Copy(os.Stdout, out)
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image: imageName,
-    }, &container.HostConfig{
-    		PortBindings: nat.PortMap{
-        		"5000/tcp": []nat.PortBinding{
-            		{
-                		HostIP:   "0.0.0.0",
-                		HostPort: exposedKeystonePort,
-            		},
-        		},
-				"35357/tcp": []nat.PortBinding{
-					{
+	}, &container.HostConfig{
+		PortBindings: nat.PortMap{
+			"5000/tcp": []nat.PortBinding{
+				{
+					HostIP:   "0.0.0.0",
+					HostPort: exposedKeystonePort,
+				},
+			},
+			"35357/tcp": []nat.PortBinding{
+				{
 					HostIP:   "0.0.0.0",
 					HostPort: exposedKeystonePortAdmin,
-					},
 				},
-    		},
-		}, &networktypes.NetworkingConfig{}, "dex_keystone_test")
+			},
+		},
+	}, &networktypes.NetworkingConfig{}, "dex_keystone_test")
 
 	if err != nil {
-    	fmt.Printf("Error %v", err)
+		fmt.Printf("Error %v", err)
 		return ""
 	}
 
@@ -81,7 +81,7 @@ func startKeystoneContainer() string {
 	}
 
 	fmt.Printf("Docker container ID: %s", resp.ID)
-  	return resp.ID
+	return resp.ID
 }
 
 func cleanKeystoneContainer(ID string) {
@@ -92,11 +92,11 @@ func cleanKeystoneContainer(ID string) {
 		return
 	}
 	duration := time.Duration(1)
-	if err:= cli.ContainerStop(ctx, ID, &duration); err != nil {
+	if err := cli.ContainerStop(ctx, ID, &duration); err != nil {
 		fmt.Printf("Error %v", err)
 		return
 	}
-	if err:= cli.ContainerRemove(ctx, ID, types.ContainerRemoveOptions{}); err != nil {
+	if err := cli.ContainerRemove(ctx, ID, types.ContainerRemoveOptions{}); err != nil {
 		fmt.Printf("Error %v", err)
 	}
 }
@@ -107,7 +107,7 @@ func getAdminToken(adminName, adminPass string) (token, id string) {
 	jsonData := loginRequestData{
 		auth: auth{
 			Identity: identity{
-				Methods:[]string{"password"},
+				Methods: []string{"password"},
 				Password: password{
 					User: user{
 						Name:     adminName,
@@ -137,7 +137,7 @@ func getAdminToken(adminName, adminPass string) (token, id string) {
 	return token, tokenResponse.Token.User.ID
 }
 
-func createUser(token, userName, userEmail, userPass string) (string){
+func createUser(token, userName, userEmail, userPass string) string {
 	client := &http.Client{}
 
 	createUserData := createUserRequest{
@@ -179,13 +179,13 @@ func delete(token, id, uri string) {
 	client.Do(req)
 }
 
-func createGroup(token, description, name string) string{
+func createGroup(token, description, name string) string {
 	client := &http.Client{}
 
 	createGroupData := createKeystoneGroup{
 		createGroupForm{
 			Description: description,
-			Name: name,
+			Name:        name,
 		},
 	}
 
@@ -215,28 +215,28 @@ func addUserToGroup(token, groupID, userID string) {
 }
 
 func TestIncorrectCredentialsLogin(t *testing.T) {
-  	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
-  				   KeystoneUsername: adminUser, KeystonePassword: adminPass}
-  	s := connector.Scopes{OfflineAccess: true, Groups: true}
-  	_, validPW, _ := c.Login(context.Background(), s, adminUser, invalidPass)
+	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
+		KeystoneUsername: adminUser, KeystonePassword: adminPass}
+	s := connector.Scopes{OfflineAccess: true, Groups: true}
+	_, validPW, _ := c.Login(context.Background(), s, adminUser, invalidPass)
 
-  	if validPW {
-  		t.Fail()
-  	}
+	if validPW {
+		t.Fail()
+	}
 }
 
 func TestValidUserLogin(t *testing.T) {
 	token, _ := getAdminToken(adminUser, adminPass)
 	userID := createUser(token, testUser, testEmail, testPass)
-  	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
-  				  KeystoneUsername: adminUser, KeystonePassword: adminPass}
-  	s := connector.Scopes{OfflineAccess: true, Groups: true}
-  	identity, validPW, _ := c.Login(context.Background(), s, testUser, testPass)
-  	fmt.Println(identity)
-  	if !validPW {
-     	t.Fail()
-  	}
-  	delete(token, userID, usersURL)
+	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
+		KeystoneUsername: adminUser, KeystonePassword: adminPass}
+	s := connector.Scopes{OfflineAccess: true, Groups: true}
+	identity, validPW, _ := c.Login(context.Background(), s, testUser, testPass)
+	fmt.Println(identity)
+	if !validPW {
+		t.Fail()
+	}
+	delete(token, userID, usersURL)
 }
 
 func TestUseRefreshToken(t *testing.T) {
@@ -257,7 +257,7 @@ func TestUseRefreshToken(t *testing.T) {
 	assert.Equal(t, testGroup, string(identityRefresh.Groups[0]))
 }
 
-func TestUseRefreshTokenUserDeleted(t *testing.T){
+func TestUseRefreshTokenUserDeleted(t *testing.T) {
 	token, _ := getAdminToken(adminUser, adminPass)
 	userID := createUser(token, testUser, testEmail, testPass)
 
@@ -274,7 +274,7 @@ func TestUseRefreshTokenUserDeleted(t *testing.T){
 	assert.Contains(t, response.Error(), "does not exist")
 }
 
-func TestUseRefreshTokenGroupsChanged(t *testing.T){
+func TestUseRefreshTokenGroupsChanged(t *testing.T) {
 	token, _ := getAdminToken(adminUser, adminPass)
 	userID := createUser(token, testUser, testEmail, testPass)
 
@@ -306,21 +306,21 @@ func TestMain(m *testing.M) {
 		return
 	}
 	dockerID := startKeystoneContainer()
-  	repeats := 10
-  	running := false
-  	for i := 0; i < repeats; i++ {
-   		_, err := http.Get(keystoneURL)
-   		if err == nil {
-     		running = true
-     		break
-   		}
-   		time.Sleep(10 * time.Second)
-  	}
-  	if !running {
-    	fmt.Printf("Failed to start keystone container")
-    	os.Exit(1)
-  	}
-  	defer cleanKeystoneContainer(dockerID)
-  	// run all tests
+	repeats := 10
+	running := false
+	for i := 0; i < repeats; i++ {
+		_, err := http.Get(keystoneURL)
+		if err == nil {
+			running = true
+			break
+		}
+		time.Sleep(10 * time.Second)
+	}
+	if !running {
+		fmt.Printf("Failed to start keystone container")
+		os.Exit(1)
+	}
+	defer cleanKeystoneContainer(dockerID)
+	// run all tests
 	m.Run()
 }
