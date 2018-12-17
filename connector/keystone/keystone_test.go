@@ -5,16 +5,9 @@ import (
 	"github.com/dexidp/dex/connector"
 
 	"fmt"
-	"io"
 	"os"
-	"time"
 	"net/http"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-	networktypes "github.com/docker/docker/api/types/network"
-	"github.com/docker/go-connections/nat"
 	"golang.org/x/net/context"
 	"bytes"
 	"encoding/json"
@@ -32,74 +25,13 @@ const testUser = "test_user"
 const testPass = "test_pass"
 const testEmail = "test@example.com"
 const testGroup = "test_group"
-
 const domain = "default"
 
-func startKeystoneContainer() string {
-	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.WithVersion(dockerCliVersion))
-
-	if err != nil {
-		fmt.Printf("Error %v", err)
-		return ""
-	}
-
-	imageName := "openio/openstack-keystone"
-	out, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
-	if err != nil {
-		fmt.Printf("Error %v", err)
-		return ""
-	}
-	io.Copy(os.Stdout, out)
-
-	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: imageName,
-	}, &container.HostConfig{
-		PortBindings: nat.PortMap{
-			"5000/tcp": []nat.PortBinding{
-				{
-					HostIP:   "0.0.0.0",
-					HostPort: exposedKeystonePort,
-				},
-			},
-			"35357/tcp": []nat.PortBinding{
-				{
-					HostIP:   "0.0.0.0",
-					HostPort: exposedKeystonePortAdmin,
-				},
-			},
-		},
-	}, &networktypes.NetworkingConfig{}, "dex_keystone_test")
-
-	if err != nil {
-		fmt.Printf("Error %v", err)
-		return ""
-	}
-
-	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("Docker container ID: %s", resp.ID)
-	return resp.ID
-}
-
-func cleanKeystoneContainer(ID string) {
-	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.WithVersion(dockerCliVersion))
-	if err != nil {
-		fmt.Printf("Error %v", err)
-		return
-	}
-	duration := time.Duration(1)
-	if err := cli.ContainerStop(ctx, ID, &duration); err != nil {
-		fmt.Printf("Error %v", err)
-		return
-	}
-	if err := cli.ContainerRemove(ctx, ID, types.ContainerRemoveOptions{}); err != nil {
-		fmt.Printf("Error %v", err)
-	}
-}
+var keystoneURL = ""
+var keystoneAdminURL = ""
+var authTokenURL = ""
+var usersURL = ""
+var groupsURL = ""
 
 func getAdminToken(adminName, adminPass string) (token, id string, err error) {
 	client := &http.Client{}
@@ -350,28 +282,23 @@ func TestUseRefreshTokenGroupsChanged(t *testing.T){
 }
 
 func TestMain(m *testing.M) {
-	testKeystoneEnv := "DEX_TEST_KEYSTONE"
-	endpointsStr := os.Getenv(testKeystoneEnv)
-	if endpointsStr == "" {
-		fmt.Printf("variable %q not set, skipping keystone connector tests\n", testKeystoneEnv)
+	keystoneURLEnv := "DEX_KEYSTONE_URL"
+	keystoneAdminURLEnv := "DEX_KEYSTONE_ADMIN_URL"
+	keystoneURL = os.Getenv(keystoneURLEnv)
+	if keystoneURL == "" {
+		fmt.Printf("variable %q not set, skipping keystone connector tests\n", keystoneURLEnv)
 		return
 	}
-	dockerID := startKeystoneContainer()
-	repeats := 10
-	running := false
-	for i := 0; i < repeats; i++ {
-		_, err := http.Get(keystoneURL)
-		if err == nil {
-			running = true
-			break
-		}
-		time.Sleep(10 * time.Second)
+	keystoneAdminURL := os.Getenv(keystoneAdminURLEnv)
+	if keystoneAdminURL == "" {
+		fmt.Printf("variable %q not set, skipping keystone connector tests\n", keystoneAdminURLEnv)
+		return
 	}
-	if !running {
-		fmt.Printf("Failed to start keystone container")
-		os.Exit(1)
-	}
-	defer cleanKeystoneContainer(dockerID)
+	authTokenURL = keystoneURL + "/v3/auth/tokens/"
+	fmt.Printf("Auth token url %q\n", authTokenURL)
+	fmt.Printf("Keystone URL %q\n", keystoneURL)
+	usersURL = keystoneAdminURL + "/v3/users/"
+	groupsURL = keystoneAdminURL + "/v3/groups/"
 	// run all tests
 	m.Run()
 }
