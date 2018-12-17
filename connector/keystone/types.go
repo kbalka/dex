@@ -4,15 +4,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const exposedKeystonePort = "5000"
-const exposedKeystonePortAdmin = "35357"
-
-const keystoneHost = "http://localhost:"
-const keystoneURL = keystoneHost + exposedKeystonePort
-const keystoneAdminURL = keystoneHost + exposedKeystonePortAdmin
-const authTokenURL = keystoneURL + "/v3/auth/tokens/"
-const usersURL = keystoneAdminURL + "/v3/users/"
-const groupsURL = keystoneAdminURL + "/v3/groups/"
 
 type keystoneConnector struct {
 	Domain           string
