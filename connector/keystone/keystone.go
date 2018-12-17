@@ -2,19 +2,19 @@
 package keystone
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/dexidp/dex/connector"
 	"github.com/sirupsen/logrus"
-	"io/ioutil"
+	"encoding/json"
 	"net/http"
+	"bytes"
+	"io/ioutil"
 )
 
 var (
 	_ connector.PasswordConnector = &keystoneConnector{}
-	_ connector.RefreshConnector  = &keystoneConnector{}
+	_ connector.RefreshConnector = &keystoneConnector{}
 )
 
 // Open returns an authentication strategy using Keystone.
@@ -27,19 +27,27 @@ func (p keystoneConnector) Close() error { return nil }
 
 func (p keystoneConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (
 	identity connector.Identity, validPassword bool, err error) {
-	response, err := p.getTokenResponse(username, password)
+	resp, err := p.getTokenResponse(username, password)
+
+	if err != nil {
+		return identity, false, fmt.Errorf("keystone: error %v\n", err)
+	}
 
 	// Providing wrong password or wrong keystone URI throws error
-	if err == nil && response.StatusCode == 201 {
-		token := response.Header["X-Subject-Token"][0]
-		data, _ := ioutil.ReadAll(response.Body)
-
-		var tokenResponse = new(tokenResponse)
-		err := json.Unmarshal(data, &tokenResponse)
+	if resp.StatusCode == 201 {
+		token := resp.Header["X-Subject-Token"][0]
+		data, err := ioutil.ReadAll(resp.Body)
+		defer resp.Body.Close()
 
 		if err != nil {
-			fmt.Printf("keystone: invalid token response: %v", err)
 			return identity, false, err
+		}
+
+		var tokenResponse = new(tokenResponse)
+		err = json.Unmarshal(data, &tokenResponse)
+
+		if err != nil {
+			return identity, false, fmt.Errorf("keystone: invalid token response: %v\n", err)
 		}
 		groups, err := p.getUserGroups(tokenResponse.Token.User.ID, token)
 
@@ -47,19 +55,21 @@ func (p keystoneConnector) Login(ctx context.Context, s connector.Scopes, userna
 			return identity, false, err
 		}
 
-		identity.Username = username
+		identity.Username =	username
 		identity.UserID = tokenResponse.Token.User.ID
 		identity.Groups = groups
 		return identity, true, nil
 
-	} else if err != nil {
-		fmt.Printf("keystone: error %v", err)
-		return identity, false, err
-
 	} else {
-		data, _ := ioutil.ReadAll(response.Body)
+		data, err := ioutil.ReadAll(resp.Body)
+		defer resp.Body.Close()
+
+		if err != nil {
+			return identity, false, err
+		}
+
 		fmt.Println(string(data))
-		return identity, false, err
+		return identity, false, nil
 	}
 	return identity, false, nil
 }
@@ -70,50 +80,55 @@ func (p keystoneConnector) Refresh(
 	ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 
 	token, err := p.getAdminToken()
-
 	if err != nil {
-		fmt.Printf("keystone: failed to obtain admin token")
-		return identity, err
+		return identity, fmt.Errorf("keystone: failed to obtain admin token: %v\n", err)
 	}
 
-	ok := p.checkIfUserExists(identity.UserID, token)
+	ok, err := p.checkIfUserExists(identity.UserID, token)
+	if err != nil {
+		return identity, err
+	}
 	if !ok {
-		fmt.Printf("keystone: user %q does not exist\n", identity.UserID)
-		return identity, fmt.Errorf("keystone: user %q does not exist", identity.UserID)
+		return identity, fmt.Errorf("keystone: user %q does not exist\n", identity.UserID)
 	}
 
 	groups, err := p.getUserGroups(identity.UserID, token)
 	if err != nil {
-		fmt.Printf("keystone: Failed to fetch user %q groups", identity.UserID)
-		return identity, fmt.Errorf("keystone: failed to fetch user %q groups", identity.UserID)
+		return identity, err
 	}
 
 	identity.Groups = groups
-	fmt.Printf("identity data after use of refresh token: %v", identity)
+	fmt.Printf("identity data after use of refresh token: %v\n", identity)
 	return identity, nil
 }
+
 
 func (p keystoneConnector) getTokenResponse(username, pass string) (response *http.Response, err error) {
 	jsonData := loginRequestData{
 		auth: auth{
 			Identity: identity{
-				Methods: []string{"password"},
+				Methods:[]string{"password"},
 				Password: password{
 					User: user{
 						Name:     username,
-						Domain:   Domain{ID: p.Domain},
+						Domain:   Domain{ID:p.Domain},
 						Password: pass,
 					},
 				},
 			},
 		},
 	}
-	jsonValue, _ := json.Marshal(jsonData)
-	authTokenUrl := p.KeystoneHost + "/v3/auth/tokens/"
-	return http.Post(authTokenUrl, "application/json", bytes.NewBuffer(jsonValue))
+	jsonValue, err := json.Marshal(jsonData)
+
+	if err != nil {
+		return nil, err
+	}
+
+	authTokenURL := p.KeystoneHost + "/v3/auth/tokens/"
+	return http.Post(authTokenURL, "application/json", bytes.NewBuffer(jsonValue))
 }
 
-func (p keystoneConnector) getAdminToken() (string, error) {
+func (p keystoneConnector) getAdminToken()(string, error) {
 	response, err := p.getTokenResponse(p.KeystoneUsername, p.KeystonePassword)
 	if err != nil {
 		return "", err
@@ -122,31 +137,42 @@ func (p keystoneConnector) getAdminToken() (string, error) {
 	return token, nil
 }
 
-func (p keystoneConnector) checkIfUserExists(userID string, token string) bool {
+func (p keystoneConnector) checkIfUserExists(userID string, token string) (bool, error) {
 	userURL := p.KeystoneHost + "/v3/users/" + userID
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", userURL, nil)
-	req.Header.Set("X-Auth-Token", token)
-	response, err := client.Do(req)
-	if err == nil && response.StatusCode == 200 {
-		return true
+	req, err := http.NewRequest("GET", userURL, nil)
+	if err != nil {
+		return false, err
 	}
-	return false
+	req.Header.Set("X-Auth-Token", token)
+	resp, err :=  client.Do(req)
+
+	if err != nil {
+		return false, err
+	}
+
+	if resp.StatusCode == 200 {
+		return true, nil
+	}
+	return false, err
 }
 
 func (p keystoneConnector) getUserGroups(userID string, token string) ([]string, error) {
 	client := &http.Client{}
 	groupsURL := p.KeystoneHost + "/v3/users/" + userID + "/groups"
-	req, _ := http.NewRequest("GET", groupsURL, nil)
-	req.Header.Set("X-Auth-Token", token)
-	response, err := client.Do(req)
+	req, err := http.NewRequest("GET", groupsURL, nil)
 
+	req.Header.Set("X-Auth-Token", token)
+	resp, err :=  client.Do(req)
 	if err != nil {
 		fmt.Printf("keystone: error while fetching user %q groups\n", userID)
 		return nil, err
 	}
-	data, _ := ioutil.ReadAll(response.Body)
+
+	data, _ := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
 	var groupsResponse = new(groupsResponse)
+
 	err = json.Unmarshal(data, &groupsResponse)
 	if err != nil {
 		return nil, err
