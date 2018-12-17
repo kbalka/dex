@@ -4,7 +4,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-
 type keystoneConnector struct {
 	Domain           string
 	KeystoneHost     string

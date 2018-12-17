@@ -30,9 +30,8 @@ const domain = "default"
 var keystoneURL = ""
 var keystoneAdminURL = ""
 var authTokenURL = ""
-var usersURL =  ""
+var usersURL = ""
 var groupsURL = ""
-
 
 func getAdminToken(adminName, adminPass string) (token, id string) {
 	client := &http.Client{}
@@ -232,22 +231,23 @@ func TestUseRefreshTokenGroupsChanged(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	keystoneUrlEnv := "DEX_KEYSTONE_URL"
-  keystoneAdminUrlEnv := "DEX_KEYSTONE_ADMIN_URL"
-	keystoneUrl := os.Getenv(keystoneUrlEnv)
-	if keystoneUrl == "" {
-		fmt.Printf("variable %q not set, skipping keystone connector tests\n", keystoneUrlEnv)
+	keystoneURLEnv := "DEX_KEYSTONE_URL"
+	keystoneAdminURLEnv := "DEX_KEYSTONE_ADMIN_URL"
+	keystoneURL = os.Getenv(keystoneURLEnv)
+	if keystoneURL == "" {
+		fmt.Printf("variable %q not set, skipping keystone connector tests\n", keystoneURLEnv)
 		return
 	}
-	keystoneAdminUrl := os.Getenv(keystoneAdminUrlEnv)
-	if keystoneAdminUrl == "" {
-		fmt.Printf("variable %q not set, skipping keystone connector tests\n", keystoneAdminUrlEnv)
+	keystoneAdminURL := os.Getenv(keystoneAdminURLEnv)
+	if keystoneAdminURL == "" {
+		fmt.Printf("variable %q not set, skipping keystone connector tests\n", keystoneAdminURLEnv)
 		return
 	}
-  authTokenURL = keystoneURL + "/v3/auth/tokens/"
-  usersURL = keystoneAdminURL + "/v3/users/"
-  groupsURL = keystoneAdminURL + "/v3/groups/"
-
+	authTokenURL = keystoneURL + "/v3/auth/tokens/"
+	fmt.Printf("Auth token url %q\n", authTokenURL)
+	fmt.Printf("Keystone URL %q\n", keystoneURL)
+	usersURL = keystoneAdminURL + "/v3/users/"
+	groupsURL = keystoneAdminURL + "/v3/groups/"
 	// run all tests
 	m.Run()
 }

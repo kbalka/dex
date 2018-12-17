@@ -109,7 +109,8 @@ func (p keystoneConnector) getTokenResponse(username, pass string) (response *ht
 		},
 	}
 	jsonValue, _ := json.Marshal(jsonData)
-	return http.Post(authTokenURL, "application/json", bytes.NewBuffer(jsonValue))
+	authTokenUrl := p.KeystoneHost + "/v3/auth/tokens/"
+	return http.Post(authTokenUrl, "application/json", bytes.NewBuffer(jsonValue))
 }
 
 func (p keystoneConnector) getAdminToken() (string, error) {
@@ -122,7 +123,7 @@ func (p keystoneConnector) getAdminToken() (string, error) {
 }
 
 func (p keystoneConnector) checkIfUserExists(userID string, token string) bool {
-	userURL := usersURL + userID
+	userURL := p.KeystoneHost + "/v3/users/" + userID
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", userURL, nil)
 	req.Header.Set("X-Auth-Token", token)
@@ -135,6 +136,7 @@ func (p keystoneConnector) checkIfUserExists(userID string, token string) bool {
 
 func (p keystoneConnector) getUserGroups(userID string, token string) ([]string, error) {
 	client := &http.Client{}
+	groupsURL := p.KeystoneHost + "/v3/users/" + userID + "/groups"
 	req, _ := http.NewRequest("GET", groupsURL, nil)
 	req.Header.Set("X-Auth-Token", token)
 	response, err := client.Do(req)
