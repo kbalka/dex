@@ -27,7 +27,7 @@ func (p keystoneConnector) Close() error { return nil }
 
 func (p keystoneConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (
 	identity connector.Identity, validPassword bool, err error) {
-	resp, err := p.getTokenResponse(ctx, &http.Client{}, username, password)
+	resp, err := p.getTokenResponse(ctx, username, password)
 
 	if err != nil {
 		return identity, false, fmt.Errorf("keystone: error %v\n", err)
@@ -103,7 +103,8 @@ func (p keystoneConnector) Refresh(
 }
 
 
-func (p keystoneConnector) getTokenResponse(ctx context.Context, client *http.Client, username, pass string) (response *http.Response, err error) {
+func (p keystoneConnector) getTokenResponse(ctx context.Context, username, pass string) (response *http.Response, err error) {
+	client := &http.Client{}
 	jsonData := loginRequestData{
 		auth: auth{
 			Identity: identity{
@@ -133,7 +134,7 @@ func (p keystoneConnector) getTokenResponse(ctx context.Context, client *http.Cl
 }
 
 func (p keystoneConnector) getAdminToken(ctx context.Context)(string, error) {
-	resp, err := p.getTokenResponse(ctx, &http.Client{}, p.KeystoneUsername, p.KeystonePassword)
+	resp, err := p.getTokenResponse(ctx, p.KeystoneUsername, p.KeystonePassword)
 	if err != nil {
 		return "", err
 	}
