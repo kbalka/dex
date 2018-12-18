@@ -35,7 +35,7 @@ func (p keystoneConnector) Login(ctx context.Context, s connector.Scopes, userna
 
 	// Providing wrong password or wrong keystone URI throws error
 	if resp.StatusCode == 201 {
-		token := resp.Header["X-Subject-Token"][0]
+		token := resp.Header.Get("X-Subject-Token")
 		data, err := ioutil.ReadAll(resp.Body)
 		defer resp.Body.Close()
 
@@ -134,11 +134,11 @@ func (p keystoneConnector) getTokenResponse(ctx context.Context, client *http.Cl
 
 func (p keystoneConnector) getAdminToken()(string, error) {
 	ctx := context.Background()
-	response, err := p.getTokenResponse(ctx, &http.Client{}, p.KeystoneUsername, p.KeystonePassword)
+	resp, err := p.getTokenResponse(ctx, &http.Client{}, p.KeystoneUsername, p.KeystonePassword)
 	if err != nil {
 		return "", err
 	}
-	token := response.Header["X-Subject-Token"][0]
+	token := resp.Header.Get("X-Subject-Token")
 	return token, nil
 }
 

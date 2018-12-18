@@ -69,7 +69,7 @@ func getAdminToken(adminName, adminPass string) (token, id string, err error) {
 		return "", "", err
 	}
 
-	token = resp.Header["X-Subject-Token"][0]
+	token = resp.Header.Get("X-Subject-Token")
 
 	data, err := ioutil.ReadAll(resp.Body)
 	defer resp.Body.Close()
