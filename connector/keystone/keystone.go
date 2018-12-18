@@ -125,6 +125,11 @@ func (p keystoneConnector) getTokenResponse(ctx context.Context, username, pass 
 
 	authTokenURL := p.KeystoneHost + "/v3/auth/tokens/"
 	req, err := http.NewRequest("POST", authTokenURL, bytes.NewBuffer(jsonValue))
+
+  if err != nil {
+    return nil, err
+  }
+
 	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(ctx)
 
