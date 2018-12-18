@@ -49,7 +49,7 @@ func (p keystoneConnector) Login(ctx context.Context, s connector.Scopes, userna
 		if err != nil {
 			return identity, false, fmt.Errorf("keystone: invalid token response: %v\n", err)
 		}
-		groups, err := p.getUserGroups(tokenResponse.Token.User.ID, token)
+		groups, err := p.getUserGroups(ctx, tokenResponse.Token.User.ID, token)
 
 		if err != nil {
 			return identity, false, err
@@ -79,12 +79,12 @@ func (p keystoneConnector) Prompt() string { return "username" }
 func (p keystoneConnector) Refresh(
 	ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 
-	token, err := p.getAdminToken()
+	token, err := p.getAdminToken(ctx)
 	if err != nil {
 		return identity, fmt.Errorf("keystone: failed to obtain admin token: %v\n", err)
 	}
 
-	ok, err := p.checkIfUserExists(identity.UserID, token)
+	ok, err := p.checkIfUserExists(ctx, identity.UserID, token)
 	if err != nil {
 		return identity, err
 	}
@@ -92,7 +92,7 @@ func (p keystoneConnector) Refresh(
 		return identity, fmt.Errorf("keystone: user %q does not exist\n", identity.UserID)
 	}
 
-	groups, err := p.getUserGroups(identity.UserID, token)
+	groups, err := p.getUserGroups(ctx, identity.UserID, token)
 	if err != nil {
 		return identity, err
 	}
@@ -132,8 +132,7 @@ func (p keystoneConnector) getTokenResponse(ctx context.Context, client *http.Cl
 	return client.Do(req)
 }
 
-func (p keystoneConnector) getAdminToken()(string, error) {
-	ctx := context.Background()
+func (p keystoneConnector) getAdminToken(ctx context.Context)(string, error) {
 	resp, err := p.getTokenResponse(ctx, &http.Client{}, p.KeystoneUsername, p.KeystonePassword)
 	if err != nil {
 		return "", err
@@ -142,14 +141,17 @@ func (p keystoneConnector) getAdminToken()(string, error) {
 	return token, nil
 }
 
-func (p keystoneConnector) checkIfUserExists(userID string, token string) (bool, error) {
+func (p keystoneConnector) checkIfUserExists(ctx context.Context, userID string, token string) (bool, error) {
 	userURL := p.KeystoneHost + "/v3/users/" + userID
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", userURL, nil)
+
 	if err != nil {
 		return false, err
 	}
+
 	req.Header.Set("X-Auth-Token", token)
+	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -162,13 +164,15 @@ func (p keystoneConnector) checkIfUserExists(userID string, token string) (bool,
 	return false, err
 }
 
-func (p keystoneConnector) getUserGroups(userID string, token string) ([]string, error) {
+func (p keystoneConnector) getUserGroups(ctx context.Context, userID string, token string) ([]string, error) {
 	client := &http.Client{}
 	groupsURL := p.KeystoneHost + "/v3/users/" + userID + "/groups"
-	req, err := http.NewRequest("GET", groupsURL, nil)
 
+	req, err := http.NewRequest("GET", groupsURL, nil)
 	req.Header.Set("X-Auth-Token", token)
+	req = req.WithContext(ctx)
 	resp, err :=  client.Do(req)
+
 	if err != nil {
 		fmt.Printf("keystone: error while fetching user %q groups\n", userID)
 		return nil, err

@@ -15,21 +15,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const adminUser = "demo"
-const adminPass = "DEMO_PASS"
-const invalidPass = "WRONG_PASS"
+const (
+	adminUser = "demo"
+	adminPass = "DEMO_PASS"
+	invalidPass = "WRONG_PASS"
 
-const testUser = "test_user"
-const testPass = "test_pass"
-const testEmail = "test@example.com"
-const testGroup = "test_group"
-const domain = "default"
+	testUser = "test_user"
+	testPass = "test_pass"
+	testEmail = "test@example.com"
+	testGroup = "test_group"
+	domain = "default"
+)
 
-var keystoneURL = ""
-var keystoneAdminURL = ""
-var authTokenURL = ""
-var usersURL = ""
-var groupsURL = ""
+var (
+	keystoneURL = ""
+	keystoneAdminURL = ""
+	authTokenURL = ""
+	usersURL = ""
+	groupsURL = ""
+)
 
 
 type createUserRequest struct {
@@ -74,8 +78,8 @@ type groupIDForm struct {
 	ID string `json:"id"`
 }
 
-
-func getAdminToken(adminName, adminPass string) (token, id string, err error) {
+func getAdminToken(t *testing.T, adminName, adminPass string) (token, id string, err error) {
+	t.Helper()
 	client := &http.Client{}
 
 	jsonData := loginRequestData{
@@ -102,7 +106,8 @@ func getAdminToken(adminName, adminPass string) (token, id string, err error) {
 	req, err := http.NewRequest("POST", authTokenURL, bytes.NewBuffer(body))
 
 	if err != nil {
-		return "", "", fmt.Errorf("keystone: failed to obtain admin token: %v\n", err)
+		t.Fatalf("keystone: failed to obtain admin token: %v\n", err)
+		return "", "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -127,7 +132,8 @@ func getAdminToken(adminName, adminPass string) (token, id string, err error) {
 	return token, tokenResponse.Token.User.ID, nil
 }
 
-func createUser(token, userName, userEmail, userPass string) (string, error){
+func createUser(t *testing.T, token, userName, userEmail, userPass string) (string, error){
+	t.Helper()
 	client := &http.Client{}
 
 	createUserData := createUserRequest{
@@ -167,26 +173,27 @@ func createUser(token, userName, userEmail, userPass string) (string, error){
 		return "", err
 	}
 
-	fmt.Println(userResponse.User.ID)
 	return userResponse.User.ID, nil
-
 }
 
 // delete group or user
-func delete(token, id, uri string) (error) {
+func delete(t *testing.T, token, id, uri string) (error) {
+	t.Helper()
 	client := &http.Client{}
 
 	deleteURI := uri + id
 	req, err := http.NewRequest("DELETE", deleteURI, nil)
 	if err != nil {
-		return fmt.Errorf("error: %v", err)
+		t.Fatalf("error: %v", err)
+		return err
 	}
 	req.Header.Set("X-Auth-Token", token)
 	client.Do(req)
 	return nil
 }
 
-func createGroup(token, description, name string) (string, error) {
+func createGroup(t *testing.T, token, description, name string) (string, error) {
+	t.Helper()
 	client := &http.Client{}
 
 	createGroupData := createKeystoneGroup{
@@ -227,7 +234,8 @@ func createGroup(token, description, name string) (string, error) {
 	return groupResponse.Group.ID, nil
 }
 
-func addUserToGroup(token, groupID, userID string) error {
+func addUserToGroup(t *testing.T, token, groupID, userID string) error {
+	t.Helper()
 	uri := groupsURL + groupID + "/users/" + userID
 	client := &http.Client{}
 	req, err := http.NewRequest("PUT", uri, nil)
@@ -251,23 +259,23 @@ func TestIncorrectCredentialsLogin(t *testing.T) {
 }
 
 func TestValidUserLogin(t *testing.T) {
-	token, _, _ := getAdminToken(adminUser, adminPass)
-	userID, _ := createUser(token, testUser, testEmail, testPass)
+	token, _, _ := getAdminToken(t, adminUser, adminPass)
+	userID, _ := createUser(t, token, testUser, testEmail, testPass)
 	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
 		KeystoneUsername: adminUser, KeystonePassword: adminPass}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
 	identity, validPW, _ := c.Login(context.Background(), s, testUser, testPass)
-	fmt.Println(identity)
+	t.Log(identity)
 	if !validPW {
 		t.Fail()
 	}
-	delete(token, userID, usersURL)
+	delete(t, token, userID, usersURL)
 }
 
 func TestUseRefreshToken(t *testing.T) {
-	token, adminID, _ := getAdminToken(adminUser, adminPass)
-	groupID, _ := createGroup(token, "Test group description", testGroup)
-	addUserToGroup(token, groupID, adminID)
+	token, adminID, _ := getAdminToken(t, adminUser, adminPass)
+	groupID, _ := createGroup(t, token, "Test group description", testGroup)
+	addUserToGroup(t, token, groupID, adminID)
 
 	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
 		KeystoneUsername: adminUser, KeystonePassword: adminPass}
@@ -276,15 +284,15 @@ func TestUseRefreshToken(t *testing.T) {
 	identityLogin, _, _ := c.Login(context.Background(), s, adminUser, adminPass)
 	identityRefresh, _ := c.Refresh(context.Background(), s, identityLogin)
 
-	delete(token, groupID, groupsURL)
+	delete(t, token, groupID, groupsURL)
 
 	assert.Equal(t, 1, len(identityRefresh.Groups))
 	assert.Equal(t, testGroup, string(identityRefresh.Groups[0]))
 }
 
 func TestUseRefreshTokenUserDeleted(t *testing.T){
-	token, _, _ := getAdminToken(adminUser, adminPass)
-	userID, _ := createUser(token, testUser, testEmail, testPass)
+	token, _, _ := getAdminToken(t, adminUser, adminPass)
+	userID, _ := createUser(t, token, testUser, testEmail, testPass)
 
 	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
 		KeystoneUsername: adminUser, KeystonePassword: adminPass}
@@ -293,15 +301,15 @@ func TestUseRefreshTokenUserDeleted(t *testing.T){
 	identityLogin, _, _ := c.Login(context.Background(), s, testUser, testPass)
 	c.Refresh(context.Background(), s, identityLogin)
 
-	delete(token, userID, usersURL)
+	delete(t, token, userID, usersURL)
 	_, response := c.Refresh(context.Background(), s, identityLogin)
 
 	assert.Contains(t, response.Error(), "does not exist")
 }
 
 func TestUseRefreshTokenGroupsChanged(t *testing.T){
-	token, _, _ := getAdminToken(adminUser, adminPass)
-	userID, _ := createUser(token, testUser, testEmail, testPass)
+	token, _, _ := getAdminToken(t, adminUser, adminPass)
+	userID, _ := createUser(t, token, testUser, testEmail, testPass)
 
 	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: domain,
 		KeystoneUsername: adminUser, KeystonePassword: adminPass}
@@ -312,13 +320,13 @@ func TestUseRefreshTokenGroupsChanged(t *testing.T){
 
 	assert.Equal(t, 0, len(identityRefresh.Groups))
 
-	groupID, _ := createGroup(token, "Test group description", testGroup)
-	addUserToGroup(token, groupID, userID)
+	groupID, _ := createGroup(t, token, "Test group description", testGroup)
+	addUserToGroup(t, token, groupID, userID)
 
 	identityRefresh, _ = c.Refresh(context.Background(), s, identityLogin)
 
-	delete(token, groupID, groupsURL)
-	delete(token, userID, usersURL)
+	delete(t, token, groupID, groupsURL)
+	delete(t, token, userID, usersURL)
 
 	assert.Equal(t, 1, len(identityRefresh.Groups))
 }
