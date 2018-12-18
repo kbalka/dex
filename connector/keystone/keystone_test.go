@@ -1,40 +1,39 @@
 package keystone
 
 import (
-	"testing"
 	"github.com/dexidp/dex/connector"
+	"testing"
 
 	"fmt"
-	"os"
 	"net/http"
+	"os"
 
-	"golang.org/x/net/context"
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/context"
+	"io/ioutil"
 )
 
 const (
-	adminUser = "demo"
-	adminPass = "DEMO_PASS"
+	adminUser   = "demo"
+	adminPass   = "DEMO_PASS"
 	invalidPass = "WRONG_PASS"
 
-	testUser = "test_user"
-	testPass = "test_pass"
+	testUser  = "test_user"
+	testPass  = "test_pass"
 	testEmail = "test@example.com"
 	testGroup = "test_group"
-	domain = "default"
+	domain    = "default"
 )
 
 var (
-	keystoneURL = ""
+	keystoneURL      = ""
 	keystoneAdminURL = ""
-	authTokenURL = ""
-	usersURL = ""
-	groupsURL = ""
+	authTokenURL     = ""
+	usersURL         = ""
+	groupsURL        = ""
 )
-
 
 type createUserRequest struct {
 	CreateUser createUserForm `json:"user"`
@@ -85,7 +84,7 @@ func getAdminToken(t *testing.T, adminName, adminPass string) (token, id string,
 	jsonData := loginRequestData{
 		auth: auth{
 			Identity: identity{
-				Methods:[]string{"password"},
+				Methods: []string{"password"},
 				Password: password{
 					User: user{
 						Name:     adminName,
@@ -132,7 +131,7 @@ func getAdminToken(t *testing.T, adminName, adminPass string) (token, id string,
 	return token, tokenResponse.Token.User.ID, nil
 }
 
-func createUser(t *testing.T, token, userName, userEmail, userPass string) (string, error){
+func createUser(t *testing.T, token, userName, userEmail, userPass string) (string, error) {
 	t.Helper()
 	client := &http.Client{}
 
@@ -177,7 +176,7 @@ func createUser(t *testing.T, token, userName, userEmail, userPass string) (stri
 }
 
 // delete group or user
-func delete(t *testing.T, token, id, uri string) (error) {
+func delete(t *testing.T, token, id, uri string) error {
 	t.Helper()
 	client := &http.Client{}
 
@@ -199,7 +198,7 @@ func createGroup(t *testing.T, token, description, name string) (string, error) 
 	createGroupData := createKeystoneGroup{
 		createGroupForm{
 			Description: description,
-			Name: name,
+			Name:        name,
 		},
 	}
 
@@ -290,7 +289,7 @@ func TestUseRefreshToken(t *testing.T) {
 	assert.Equal(t, testGroup, string(identityRefresh.Groups[0]))
 }
 
-func TestUseRefreshTokenUserDeleted(t *testing.T){
+func TestUseRefreshTokenUserDeleted(t *testing.T) {
 	token, _, _ := getAdminToken(t, adminUser, adminPass)
 	userID, _ := createUser(t, token, testUser, testEmail, testPass)
 
@@ -307,7 +306,7 @@ func TestUseRefreshTokenUserDeleted(t *testing.T){
 	assert.Contains(t, response.Error(), "does not exist")
 }
 
-func TestUseRefreshTokenGroupsChanged(t *testing.T){
+func TestUseRefreshTokenGroupsChanged(t *testing.T) {
 	token, _, _ := getAdminToken(t, adminUser, adminPass)
 	userID, _ := createUser(t, token, testUser, testEmail, testPass)
 

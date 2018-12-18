@@ -2,19 +2,19 @@
 package keystone
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/dexidp/dex/connector"
 	"github.com/sirupsen/logrus"
-	"encoding/json"
-	"net/http"
-	"bytes"
 	"io/ioutil"
+	"net/http"
 )
 
 var (
 	_ connector.PasswordConnector = &keystoneConnector{}
-	_ connector.RefreshConnector = &keystoneConnector{}
+	_ connector.RefreshConnector  = &keystoneConnector{}
 )
 
 // Open returns an authentication strategy using Keystone.
@@ -55,7 +55,7 @@ func (p keystoneConnector) Login(ctx context.Context, s connector.Scopes, userna
 			return identity, false, err
 		}
 
-		identity.Username =	username
+		identity.Username = username
 		identity.UserID = tokenResponse.Token.User.ID
 		identity.Groups = groups
 		return identity, true, nil
@@ -101,17 +101,16 @@ func (p keystoneConnector) Refresh(
 	return identity, nil
 }
 
-
 func (p keystoneConnector) getTokenResponse(ctx context.Context, username, pass string) (response *http.Response, err error) {
 	client := &http.Client{}
 	jsonData := loginRequestData{
 		auth: auth{
 			Identity: identity{
-				Methods:[]string{"password"},
+				Methods: []string{"password"},
 				Password: password{
 					User: user{
 						Name:     username,
-						Domain:   Domain{ID:p.Domain},
+						Domain:   Domain{ID: p.Domain},
 						Password: pass,
 					},
 				},
@@ -132,7 +131,7 @@ func (p keystoneConnector) getTokenResponse(ctx context.Context, username, pass 
 	return client.Do(req)
 }
 
-func (p keystoneConnector) getAdminToken(ctx context.Context)(string, error) {
+func (p keystoneConnector) getAdminToken(ctx context.Context) (string, error) {
 	resp, err := p.getTokenResponse(ctx, p.KeystoneUsername, p.KeystonePassword)
 	if err != nil {
 		return "", err
@@ -171,7 +170,7 @@ func (p keystoneConnector) getUserGroups(ctx context.Context, userID string, tok
 	req, err := http.NewRequest("GET", groupsURL, nil)
 	req.Header.Set("X-Auth-Token", token)
 	req = req.WithContext(ctx)
-	resp, err :=  client.Do(req)
+	resp, err := client.Do(req)
 
 	if err != nil {
 		p.Logger.Errorf("keystone: error while fetching user %q groups\n", userID)
