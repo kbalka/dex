@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const dockerCliVersion = "1.37"
-
 const adminUser = "demo"
 const adminPass = "DEMO_PASS"
 const invalidPass = "WRONG_PASS"
@@ -32,6 +30,50 @@ var keystoneAdminURL = ""
 var authTokenURL = ""
 var usersURL = ""
 var groupsURL = ""
+
+
+type createUserRequest struct {
+	CreateUser createUserForm `json:"user"`
+}
+
+type createUserForm struct {
+	Name     string   `json:"name"`
+	Email    string   `json:"email"`
+	Enabled  bool     `json:"enabled"`
+	Password string   `json:"password"`
+	Roles    []string `json:"roles"`
+}
+
+type userResponse struct {
+	User createUserResponse `json:"user"`
+}
+
+type createUserResponse struct {
+	Username string   `json:"username"`
+	Name     string   `json:"name"`
+	Roles    []string `json:"roles"`
+	Enabled  bool     `json:"enabled"`
+	ID       string   `json:"id"`
+	Email    string   `json:"email"`
+}
+
+type createKeystoneGroup struct {
+	Group createGroupForm `json:"group"`
+}
+
+type createGroupForm struct {
+	Description string `json:"description"`
+	Name        string `json:"name"`
+}
+
+type groupID struct {
+	Group groupIDForm `json:"group"`
+}
+
+type groupIDForm struct {
+	ID string `json:"id"`
+}
+
 
 func getAdminToken(adminName, adminPass string) (token, id string, err error) {
 	client := &http.Client{}
