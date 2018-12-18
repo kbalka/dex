@@ -98,7 +98,6 @@ func (p keystoneConnector) Refresh(
 	}
 
 	identity.Groups = groups
-	fmt.Printf("identity data after use of refresh token: %v\n", identity)
 	return identity, nil
 }
 
@@ -175,7 +174,7 @@ func (p keystoneConnector) getUserGroups(ctx context.Context, userID string, tok
 	resp, err :=  client.Do(req)
 
 	if err != nil {
-		fmt.Printf("keystone: error while fetching user %q groups\n", userID)
+		p.Logger.Errorf("keystone: error while fetching user %q groups\n", userID)
 		return nil, err
 	}
 
